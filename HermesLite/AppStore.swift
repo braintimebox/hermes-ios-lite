@@ -27,6 +27,9 @@ final class AppStore: ObservableObject {
     @Published var isStreaming: Bool = false
     @Published var streamID: String? = nil
 
+    // Tool cards (Hermex look, no web parsing — plain rows)
+    @Published var streamingTools: [ToolCard] = []
+
     var activePins: [PinItem] {
         guard let session else { return pins }
         return pins.filter { $0.sessionId == session.sessionId }
@@ -101,6 +104,7 @@ final class AppStore: ObservableObject {
         streamingText = ""
         streamingReasoning = ""
         isStreaming = true
+        streamingTools = []
         do {
             let s = try await ensureSession()
             messages.append(ChatMessage(id: "local-\(UUID().uuidString)", role: "user",
@@ -120,6 +124,7 @@ final class AppStore: ObservableObject {
         } catch {
             self.error = error.localizedDescription
             draft = text
+            streamingTools = []
         }
         isStreaming = false
         isSending = false
@@ -135,6 +140,17 @@ final class AppStore: ObservableObject {
             if let text = parseText(data) { streamingReasoning += text }
         case "message":
             if let text = parseText(data) { streamingText += text }
+        case "tool":
+            if let tool = parseTool(data), !tool.isError { streamingTools.append(tool) }
+        case "tool_complete":
+            if let tool = parseTool(data) {
+                // replace a started card with its completion (matched by name), else append
+                if let idx = streamingTools.firstIndex(where: { $0.name == tool.name }) {
+                    streamingTools[idx] = tool
+                } else {
+                    streamingTools.append(tool)
+                }
+            }
         case "title":
             if let title = parseTitle(data), let session {
                 self.session = SessionInfo(sessionId: session.sessionId, title: title, updatedAt: session.updatedAt)
@@ -147,6 +163,16 @@ final class AppStore: ObservableObject {
         // `done`/`stream_end`/`cancel` do NOT flip isStreaming here: the bubble must
         // stay until after the loop exits and settleStreamingMessage() appends the
         // settled row, otherwise it flashes off for a frame (net → visual flicker).
+    }
+
+    private func parseTool(_ data: String) -> ToolCard? {
+        guard let obj = try? JSONSerialization.jsonObject(with: Data(data.utf8)) as? [String: Any] else { return nil }
+        let name = (obj["name"] as? String) ?? "tool"
+        let preview = obj["preview"] as? String
+        let duration = obj["duration"] as? Double
+        let isError = (obj["is_error"] as? Bool) ?? false
+        let tid = obj["id"].map { "\($0)" } ?? obj["tool_call_id"] as? String ?? name
+        return ToolCard(id: "tool-\(tid)-\(UUID().uuidString)", name: name, preview: preview, duration: duration, isError: isError)
     }
 
     private func parseText(_ data: String) -> String? {
@@ -173,6 +199,8 @@ final class AppStore: ObservableObject {
         }
         streamingText = ""
         streamingReasoning = ""
+        // Keep completed tool cards attached to this message so they persist visually.
+        // (ToolCard is UI-state, not persisted; they render under the streaming bubble.)
     }
 
     func refreshMessages(repeatCount: Int = 1) async {

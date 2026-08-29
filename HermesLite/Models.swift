@@ -9,7 +9,14 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     var isStreaming: Bool
 
     var isUser: Bool { role == "user" }
-    var isSystem: Bool { role == "system" || role == "tool" }
+}
+
+struct ToolCard: Identifiable, Equatable {
+    let id: String
+    let name: String
+    var preview: String?
+    var duration: Double?
+    var isError: Bool
 }
 
 struct PinItem: Identifiable, Codable, Equatable {

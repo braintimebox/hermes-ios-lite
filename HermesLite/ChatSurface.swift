@@ -19,7 +19,7 @@ struct ChatSurface: View {
                             }
                         }
                         if store.isStreaming {
-                            StreamingBubble(text: store.streamingText, reasoning: store.streamingReasoning)
+                            StreamingBubble()
                                 .id("streaming")
                         }
                         Color.clear.frame(height: 1).id("bottom")
@@ -93,20 +93,22 @@ struct CircleButton: View {
 
 // MARK: - StreamingBubble (live growing assistant bubble, separate from messages array)
 struct StreamingBubble: View {
-    let text: String
-    let reasoning: String
+    @EnvironmentObject private var store: AppStore
 
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 5) {
-                if !reasoning.isEmpty {
-                    Text(reasoning)
+                if !store.streamingReasoning.isEmpty {
+                    Text(store.streamingReasoning)
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.55))
                         .lineLimit(3)
                 }
+                ForEach(store.streamingTools) { tool in
+                    ToolRow(tool: tool)
+                }
                 HStack(alignment: .bottom, spacing: 6) {
-                    Text(text.isEmpty ? "…" : text)
+                    Text(store.streamingText.isEmpty ? "…" : store.streamingText)
                         .font(.body)
                         .foregroundStyle(.white)
                         .textSelection(.enabled)
@@ -121,6 +123,36 @@ struct StreamingBubble: View {
             Spacer(minLength: 44)
         }
         .padding(.horizontal, 8)
+    }
+}
+
+struct ToolRow: View {
+    let tool: ToolCard
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: tool.isError ? "exclamationmark.triangle" : "wrench")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(tool.isError ? Color.orange : Color.cyan)
+            Text(tool.name)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.85))
+            if let preview = tool.preview, !preview.isEmpty {
+                Text(preview)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.55))
+                    .lineLimit(1)
+            }
+            Spacer()
+            if let duration = tool.duration {
+                Text("\(String(format: "%.1f", duration))s")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 

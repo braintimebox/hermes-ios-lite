@@ -9,6 +9,7 @@ Goals:
 - throttled Markdown for assistant messages (>2KB), plain Text for the rest
 - live SSE streaming: single growing String per stream, O(1) append, no per-token
   array invalidation or Markdown re-parse
+- tool cards rendered as compact rows during streaming (no web parsing)
 - chat/session picker
 - Telegram-like local message pins
 - server-side scheduled messages via `/webhook/scheduled-messages`
