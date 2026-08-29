@@ -18,7 +18,7 @@ Goals:
 
 GitHub Actions generates the Xcode project with XcodeGen and uploads `HermesLite-unsigned.ipa`.
 
-**Current build:** pending v0.4.0
+**Current build:** https://github.com/braintimebox/hermes-ios-lite/actions/runs/33274475056/artifacts/9721081705
 **All builds:** https://github.com/braintimebox/hermes-ios-lite/actions
 
 ## Runtime settings
