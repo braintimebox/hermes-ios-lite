@@ -100,10 +100,12 @@ final class APIClient: ObservableObject {
             let role = item["role"] as? String ?? "assistant"
             let content = item["content"] as? String ?? item["text"] as? String ?? ""
             if content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return nil }
+            let reasoning = item["reasoning"] as? String
             let serverID = item["id"].map { "srv-\($0)" }
             let messageID = item["message_id"].map { "mid-\($0)" }
             let id = serverID ?? messageID ?? "fx-\(sessionId)-\(idx)-\(content.hashValue)"
-            return ChatMessage(id: id, role: role, content: content, timestamp: Date())
+            return ChatMessage(id: id, role: role, content: content, timestamp: Date(),
+                              reasoning: (reasoning?.isEmpty ?? true) ? nil : reasoning, isStreaming: false)
         }
     }
 

@@ -5,7 +5,8 @@ Minimal native iOS client for Hermes Agent.
 Goals:
 - maximum responsiveness
 - Hermex-like polished chat shell without the Hermex hot-path weight
-- plain-text chat rendering (no Markdown renderer on the hot path)
+- reading-first surface: hidden composer, FAB to write, 2-step keyboard close
+- throttled Markdown for assistant messages (>2KB), plain Text for the rest
 - chat/session picker
 - Telegram-like local message pins
 - server-side scheduled messages via `/webhook/scheduled-messages`
@@ -15,7 +16,7 @@ Goals:
 
 GitHub Actions generates the Xcode project with XcodeGen and uploads `HermesLite-unsigned.ipa`.
 
-**Current build:** https://github.com/braintimebox/hermes-ios-lite/actions/runs/33272889470/artifacts/9720627947
+**Current build:** pending v0.3.0
 **All builds:** https://github.com/braintimebox/hermes-ios-lite/actions
 
 ## Runtime settings

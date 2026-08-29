@@ -5,6 +5,8 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     let role: String
     var content: String
     var timestamp: Date
+    var reasoning: String?
+    var isStreaming: Bool
 
     var isUser: Bool { role == "user" }
     var isSystem: Bool { role == "system" || role == "tool" }

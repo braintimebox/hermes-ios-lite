@@ -2,30 +2,42 @@ import SwiftUI
 
 enum HermesTheme {
     static let background = LinearGradient(
-        colors: [Color(red: 0.035, green: 0.045, blue: 0.070), Color(red: 0.075, green: 0.085, blue: 0.125)],
+        colors: [Color(red: 0.030, green: 0.040, blue: 0.065),
+                 Color(red: 0.070, green: 0.082, blue: 0.120)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
-    static let card = Color.white.opacity(0.075)
-    static let cardStrong = Color.white.opacity(0.12)
-    static let stroke = Color.white.opacity(0.12)
-    static let assistantBubble = Color.white.opacity(0.09)
+    static let assistantBubble = Color.white.opacity(0.075)
     static let userBubble = LinearGradient(
-        colors: [Color.cyan.opacity(0.78), Color.blue.opacity(0.64)],
+        colors: [Color.cyan.opacity(0.72), Color.blue.opacity(0.60)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 }
 
-struct GlassCard: ViewModifier {
-    var radius: CGFloat = 18
+struct Gal: ViewModifier {
+    var radius: CGFloat = 20
+    var interactive = false
     func body(content: Content) -> some View {
         content
-            .background(.ultraThinMaterial.opacity(0.72), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).stroke(HermesTheme.stroke, lineWidth: 1))
+            .background(.ultraThinMaterial.opacity(interactive ? 0.9 : 0.72),
+                        in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1))
+    }
+}
+
+// chatTactile-style: pressed scale + soft shadow
+struct Tactile: ViewModifier {
+    var size: CGFloat
+    func body(content: Content) -> some View {
+        content
+            .frame(width: size, height: size)
+            .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
     }
 }
 
 extension View {
-    func hermesCard(radius: CGFloat = 18) -> some View { modifier(GlassCard(radius: radius)) }
+    func gal(radius: CGFloat = 20, interactive: Bool = false) -> some View { modifier(Gal(radius: radius, interactive: interactive)) }
+    func tactile(_ size: CGFloat) -> some View { modifier(Tactile(size: size)) }
 }
