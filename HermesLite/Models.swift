@@ -7,10 +7,12 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     var timestamp: Date
 
     var isUser: Bool { role == "user" }
+    var isSystem: Bool { role == "system" || role == "tool" }
 }
 
 struct PinItem: Identifiable, Codable, Equatable {
     let id: String
+    let sessionId: String
     let messageID: String
     let text: String
     let timestamp: Date
@@ -25,7 +27,9 @@ struct ScheduledItem: Identifiable, Codable, Equatable {
     var scheduledAt: Date
 }
 
-struct SessionInfo: Codable, Equatable {
+struct SessionInfo: Identifiable, Codable, Equatable {
+    var id: String { sessionId }
     var sessionId: String
     var title: String
+    var updatedAt: Date?
 }

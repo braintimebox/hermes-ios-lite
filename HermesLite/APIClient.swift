@@ -56,6 +56,20 @@ final class APIClient: ObservableObject {
         }
     }
 
+    func listSessions() async throws -> [SessionInfo] {
+        try await loginIfNeeded()
+        let (data, resp) = try await URLSession.shared.data(for: try request("/api/sessions?include_archived=0"))
+        try validate(resp)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
+        let raw = (json["sessions"] as? [[String: Any]]) ?? []
+        return raw.compactMap { item in
+            let sid = (item["sessionId"] as? String) ?? (item["session_id"] as? String) ?? (item["id"] as? String)
+            guard let sid, !sid.isEmpty else { return nil }
+            let title = (item["title"] as? String) ?? (item["name"] as? String) ?? "Untitled"
+            return SessionInfo(sessionId: sid, title: title, updatedAt: nil)
+        }
+    }
+
     func createSession() async throws -> SessionInfo {
         try await loginIfNeeded()
         let (data, resp) = try await URLSession.shared.data(for: try request("/api/session/new", method: "POST", body: [:]))
@@ -64,7 +78,7 @@ final class APIClient: ObservableObject {
         let session = json?["session"] as? [String: Any]
         let sid = (session?["sessionId"] as? String) ?? (session?["session_id"] as? String) ?? UUID().uuidString
         let title = (session?["title"] as? String) ?? "New chat"
-        return SessionInfo(sessionId: sid, title: title)
+        return SessionInfo(sessionId: sid, title: title, updatedAt: nil)
     }
 
     func startChat(sessionId: String, text: String) async throws {
@@ -74,9 +88,10 @@ final class APIClient: ObservableObject {
         try validate(resp)
     }
 
-    func fetchMessages(sessionId: String, limit: Int = 80) async throws -> [ChatMessage] {
+    func fetchMessages(sessionId: String, limit: Int = 120) async throws -> [ChatMessage] {
         try await loginIfNeeded()
-        let path = "/api/session?session_id=\(sessionId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? sessionId)&messages=1&msg_limit=\(limit)"
+        let sid = sessionId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? sessionId
+        let path = "/api/session?session_id=\(sid)&messages=1&msg_limit=\(limit)"
         let (data, resp) = try await URLSession.shared.data(for: try request(path))
         try validate(resp)
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
@@ -84,9 +99,10 @@ final class APIClient: ObservableObject {
         return raw.enumerated().compactMap { idx, item in
             let role = item["role"] as? String ?? "assistant"
             let content = item["content"] as? String ?? item["text"] as? String ?? ""
-            if content.isEmpty { return nil }
-            let rawID = item["id"].map { "\($0)" } ?? item["message_id"].map { "\($0)" }
-            let id = rawID ?? "\(sessionId)-\(idx)-\(content.hashValue)"
+            if content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return nil }
+            let serverID = item["id"].map { "srv-\($0)" }
+            let messageID = item["message_id"].map { "mid-\($0)" }
+            let id = serverID ?? messageID ?? "fx-\(sessionId)-\(idx)-\(content.hashValue)"
             return ChatMessage(id: id, role: role, content: content, timestamp: Date())
         }
     }
@@ -110,7 +126,7 @@ final class APIClient: ObservableObject {
 
     func schedule(text: String, sessionId: String, title: String?, at date: Date) async throws {
         let body: [String: Any] = [
-            "scheduleKey": "ios-lite|\(Int(date.timeIntervalSince1970))|\(UUID().uuidString)",
+            "scheduleKey": "ios-bullet|\(Int(date.timeIntervalSince1970))|\(UUID().uuidString)",
             "text": text,
             "sessionId": sessionId,
             "sessionTitle": title ?? "",

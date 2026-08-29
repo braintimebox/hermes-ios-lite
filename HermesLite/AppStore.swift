@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class AppStore: ObservableObject {
     @Published var client = APIClient()
+    @Published var sessions: [SessionInfo] = []
     @Published var session: SessionInfo? {
         didSet { persistSession() }
     }
@@ -17,15 +18,54 @@ final class AppStore: ObservableObject {
     @Published var isRefreshing = false
     @Published var error: String?
 
+    var activePins: [PinItem] {
+        guard let session else { return pins }
+        return pins.filter { $0.sessionId == session.sessionId }
+    }
+
     init() {
         loadSession()
         loadPins()
+    }
+
+    func bootstrap() async {
+        await loadSessions()
+        if session == nil { session = sessions.first }
+        await refreshMessages()
+        await loadScheduled()
+    }
+
+    func loadSessions() async {
+        do {
+            let fetched = try await client.listSessions()
+            sessions = fetched
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func select(_ s: SessionInfo) async {
+        session = s
+        messages = []
+        await refreshMessages()
+    }
+
+    func newSession() async {
+        do {
+            let created = try await client.createSession()
+            session = created
+            messages = []
+            if !sessions.contains(where: { $0.sessionId == created.sessionId }) {
+                sessions.insert(created, at: 0)
+            }
+        } catch { self.error = error.localizedDescription }
     }
 
     func ensureSession() async throws -> SessionInfo {
         if let session { return session }
         let created = try await client.createSession()
         session = created
+        if !sessions.contains(where: { $0.sessionId == created.sessionId }) { sessions.insert(created, at: 0) }
         return created
     }
 
@@ -37,9 +77,10 @@ final class AppStore: ObservableObject {
         error = nil
         do {
             let s = try await ensureSession()
-            messages.append(ChatMessage(id: UUID().uuidString, role: "user", content: text, timestamp: Date()))
+            messages.append(ChatMessage(id: "local-\(UUID().uuidString)", role: "user", content: text, timestamp: Date()))
             try await client.startChat(sessionId: s.sessionId, text: text)
-            await refreshMessages(repeatCount: 6)
+            await refreshMessages(repeatCount: 8)
+            await loadSessions()
         } catch {
             self.error = error.localizedDescription
             draft = text
@@ -54,24 +95,34 @@ final class AppStore: ObservableObject {
         for i in 0..<repeatCount {
             do {
                 let fetched = try await client.fetchMessages(sessionId: session.sessionId)
-                if !fetched.isEmpty { messages = fetched }
+                if !fetched.isEmpty { messages = mergeStable(old: messages, new: fetched) }
             } catch {
                 self.error = error.localizedDescription
             }
-            if i + 1 < repeatCount { try? await Task.sleep(nanoseconds: 1_500_000_000) }
+            if i + 1 < repeatCount { try? await Task.sleep(nanoseconds: 1_250_000_000) }
+        }
+    }
+
+    private func mergeStable(old: [ChatMessage], new: [ChatMessage]) -> [ChatMessage] {
+        let oldById = Dictionary(uniqueKeysWithValues: old.map { ($0.id, $0) })
+        return new.map { incoming in
+            if let existing = oldById[incoming.id], existing.content == incoming.content { return existing }
+            return incoming
         }
     }
 
     func togglePin(_ message: ChatMessage) {
-        if let idx = pins.firstIndex(where: { $0.messageID == message.id }) {
+        guard let session else { return }
+        if let idx = pins.firstIndex(where: { $0.sessionId == session.sessionId && $0.messageID == message.id }) {
             pins.remove(at: idx)
         } else {
-            pins.insert(PinItem(id: UUID().uuidString, messageID: message.id, text: message.content, timestamp: Date()), at: 0)
+            pins.insert(PinItem(id: UUID().uuidString, sessionId: session.sessionId, messageID: message.id, text: message.content, timestamp: Date()), at: 0)
         }
     }
 
     func isPinned(_ message: ChatMessage) -> Bool {
-        pins.contains { $0.messageID == message.id }
+        guard let session else { return false }
+        return pins.contains { $0.sessionId == session.sessionId && $0.messageID == message.id }
     }
 
     func loadScheduled() async {
