@@ -35,7 +35,7 @@ struct ComposerZone: View {
                 .padding(.vertical, 10)
                 .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-            Button { Task { await store.sendNow() } } label: {
+            Button { Task { await store.sendStreaming() } } label: {
                 Group {
                     if store.isSending { ProgressView().tint(.white) }
                     else { Image(systemName: "paperplane.fill") }

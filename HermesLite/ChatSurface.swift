@@ -18,6 +18,10 @@ struct ChatSurface: View {
                                     .id(m.id)
                             }
                         }
+                        if store.isStreaming {
+                            StreamingBubble(text: store.streamingText, reasoning: store.streamingReasoning)
+                                .id("streaming")
+                        }
                         Color.clear.frame(height: 1).id("bottom")
                     }
                     .padding(.vertical, 12)
@@ -39,6 +43,9 @@ struct ChatSurface: View {
                 .onChange(of: store.messages.count) { _, _ in
                     proxy.scrollTo("bottom", anchor: .bottom)
                     scrolledUp = false
+                }
+                .onChange(of: store.streamingText) { _, _ in
+                    proxy.scrollTo("bottom", anchor: .bottom)
                 }
 
                 HStack(spacing: 10) {
@@ -81,6 +88,49 @@ struct CircleButton: View {
         }
         .buttonStyle(.plain)
         .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
+    }
+}
+
+// MARK: - StreamingBubble (live growing assistant bubble, separate from messages array)
+struct StreamingBubble: View {
+    let text: String
+    let reasoning: String
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 5) {
+                if !reasoning.isEmpty {
+                    Text(reasoning)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.55))
+                        .lineLimit(3)
+                }
+                HStack(alignment: .bottom, spacing: 6) {
+                    Text(text.isEmpty ? "…" : text)
+                        .font(.body)
+                        .foregroundStyle(.white)
+                        .textSelection(.enabled)
+                    TypingDots()
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(HermesTheme.assistantBubble, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 1))
+
+            Spacer(minLength: 44)
+        }
+        .padding(.horizontal, 8)
+    }
+}
+
+struct TypingDots: View {
+    var body: some View {
+        HStack(spacing: 3) {
+            Circle().fill(Color.white.opacity(0.7)).frame(width: 5, height: 5)
+            Circle().fill(Color.white.opacity(0.7)).frame(width: 5, height: 5)
+            Circle().fill(Color.white.opacity(0.7)).frame(width: 5, height: 5)
+        }
     }
 }
 

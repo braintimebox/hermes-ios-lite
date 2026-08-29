@@ -7,6 +7,8 @@ Goals:
 - Hermex-like polished chat shell without the Hermex hot-path weight
 - reading-first surface: hidden composer, FAB to write, 2-step keyboard close
 - throttled Markdown for assistant messages (>2KB), plain Text for the rest
+- live SSE streaming: single growing String per stream, O(1) append, no per-token
+  array invalidation or Markdown re-parse
 - chat/session picker
 - Telegram-like local message pins
 - server-side scheduled messages via `/webhook/scheduled-messages`
@@ -16,7 +18,7 @@ Goals:
 
 GitHub Actions generates the Xcode project with XcodeGen and uploads `HermesLite-unsigned.ipa`.
 
-**Current build:** https://github.com/braintimebox/hermes-ios-lite/actions/runs/33274008624/artifacts/9720949582
+**Current build:** pending v0.4.0
 **All builds:** https://github.com/braintimebox/hermes-ios-lite/actions
 
 ## Runtime settings

@@ -88,6 +88,25 @@ final class APIClient: ObservableObject {
         try validate(resp)
     }
 
+    /// POST /api/chat/start → returns `stream_id` for the SSE feed.
+    func startChatStreaming(sessionId: String, text: String) async throws -> String {
+        try await loginIfNeeded()
+        let body = ["session_id": sessionId, "message": text]
+        let (data, resp) = try await URLSession.shared.data(for: try request("/api/chat/start", method: "POST", body: body))
+        try validate(resp)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw APIError.http(200)
+        }
+        if let err = json["error"] as? String, !err.isEmpty { throw APIError.http(400) }
+        let sid = (json["stream_id"] as? String) ?? (json["streamId"] as? String) ?? ""
+        return sid
+    }
+
+    func streamURL(streamId: String) throws -> URL {
+        let sid = streamId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? streamId
+        return try url("/api/chat/stream?stream_id=\(sid)&replay=1&after_seq=0")
+    }
+
     func fetchMessages(sessionId: String, limit: Int = 120) async throws -> [ChatMessage] {
         try await loginIfNeeded()
         let sid = sessionId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? sessionId
@@ -144,6 +163,9 @@ final class APIClient: ObservableObject {
     }
 
     func clearAuth() { cookie = nil }
+
+    /// Exposed for the SSE reader (streaming path).
+    var currentCookie: String? { cookie }
 
     private func validate(_ resp: URLResponse) throws {
         guard let http = resp as? HTTPURLResponse else { return }

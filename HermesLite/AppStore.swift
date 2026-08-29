@@ -20,6 +20,13 @@ final class AppStore: ObservableObject {
     @Published var isRefreshing = false
     @Published var error: String?
 
+    // Live streaming state (Hermex): single growing String per stream — O(1) append,
+    // no whole-array invalidation, no per-token markdown re-parse (Law 3 + Law 7).
+    @Published var streamingText: String = ""
+    @Published var streamingReasoning: String = ""
+    @Published var isStreaming: Bool = false
+    @Published var streamID: String? = nil
+
     var activePins: [PinItem] {
         guard let session else { return pins }
         return pins.filter { $0.sessionId == session.sessionId }
@@ -82,6 +89,90 @@ final class AppStore: ObservableObject {
             draft = text
         }
         isSending = false
+    }
+
+    /// Streaming send: live token output via SSE (fast path, Hermex-style).
+    func sendStreaming() async {
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        draft = ""
+        isSending = true
+        error = nil
+        streamingText = ""
+        streamingReasoning = ""
+        isStreaming = true
+        do {
+            let s = try await ensureSession()
+            messages.append(ChatMessage(id: "local-\(UUID().uuidString)", role: "user",
+                                        content: text, timestamp: Date(), reasoning: nil, isStreaming: false))
+            let streamID = try await client.startChatStreaming(sessionId: s.sessionId, text: text)
+            self.streamID = streamID
+            let url = try client.streamURL(streamId: streamID)
+            let cookie = client.currentCookie
+            for try await frame in SSEClient.stream(url: url, cookie: cookie) {
+                switch frame {
+                case .event(let name, let data):
+                    handleStreamEvent(name: name, data: data)
+                }
+            }
+            // Stream finished normally — settle what we have into a real message.
+            settleStreamingMessage()
+        } catch {
+            self.error = error.localizedDescription
+            draft = text
+        }
+        isStreaming = false
+        isSending = false
+        streamID = nil
+        await loadSessions()
+    }
+
+    private func handleStreamEvent(name: String, data: String) {
+        switch name {
+        case "token":
+            if let text = parseText(data) { streamingText += text }
+        case "reasoning":
+            if let text = parseText(data) { streamingReasoning += text }
+        case "message":
+            if let text = parseText(data) { streamingText += text }
+        case "title":
+            if let title = parseTitle(data), let session {
+                self.session = SessionInfo(sessionId: session.sessionId, title: title, updatedAt: session.updatedAt)
+            }
+        case "error", "apperror":
+            if let msg = parseText(data) { self.error = msg }
+        default:
+            break
+        }
+        // `done`/`stream_end`/`cancel` do NOT flip isStreaming here: the bubble must
+        // stay until after the loop exits and settleStreamingMessage() appends the
+        // settled row, otherwise it flashes off for a frame (net → visual flicker).
+    }
+
+    private func parseText(_ data: String) -> String? {
+        guard let obj = try? JSONSerialization.jsonObject(with: Data(data.utf8)) as? [String: Any] else { return nil }
+        return obj["text"] as? String
+    }
+
+    private func parseTitle(_ data: String) -> String? {
+        guard let obj = try? JSONSerialization.jsonObject(with: Data(data.utf8)) as? [String: Any] else { return nil }
+        return (obj["title"] as? String) ?? (obj["title_new"] as? String)
+    }
+
+    private func settleStreamingMessage() {
+        let content = streamingText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !content.isEmpty {
+            messages.append(ChatMessage(id: "srv-\(UUID().uuidString)", role: "assistant",
+                                        content: content, timestamp: Date(),
+                                        reasoning: streamingReasoning.isEmpty ? nil : streamingReasoning,
+                                        isStreaming: false))
+        } else if !streamingReasoning.isEmpty {
+            messages.append(ChatMessage(id: "srv-\(UUID().uuidString)", role: "assistant",
+                                        content: "(no text)", timestamp: Date(),
+                                        reasoning: streamingReasoning, isStreaming: false))
+        }
+        streamingText = ""
+        streamingReasoning = ""
     }
 
     func refreshMessages(repeatCount: Int = 1) async {
