@@ -55,12 +55,17 @@ struct HermesHeader: View {
         HStack(spacing: 10) {
             Button { showingSessions = true } label: {
                 ZStack {
-                    Circle().fill(Color.cyan.opacity(0.18))
-                    Text(initials)
+                    LinearGradient(
+                        colors: [Color.cyan.opacity(0.35), Color.blue.opacity(0.25)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    )
+                    Image(systemName: "sparkles")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.cyan)
+                        .foregroundStyle(.white)
                 }
                 .frame(width: 38, height: 38)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.18), lineWidth: 1))
             }
             .buttonStyle(.plain)
 
@@ -90,10 +95,6 @@ struct HermesHeader: View {
         .frame(maxWidth: .infinity)
     }
 
-    private var initials: String {
-        let t = store.session?.title ?? "H"
-        return String(t.prefix(1)).uppercased()
-    }
     private var detail: String {
         if store.isSending { return "sending…" }
         if store.isRefreshing { return "syncing…" }
